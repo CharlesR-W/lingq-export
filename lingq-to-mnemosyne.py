@@ -281,7 +281,7 @@ def insert_card(conn, front, back, tag_ids, tags_str):
         )
 
 
-def import_to_mnemosyne(lingqs, lang_code, style="context", reverse=False, html=False):
+def import_to_mnemosyne(lingqs, lang_code, style="context", reverse=False, html=False, lingq_tags=False):
     if not os.path.exists(MNEMOSYNE_DB):
         sys.exit(f"Mnemosyne database not found: {MNEMOSYNE_DB}")
 
@@ -317,11 +317,16 @@ def import_to_mnemosyne(lingqs, lang_code, style="context", reverse=False, html=
         if card_exists(conn, front):
             skipped += 1
             continue
+        # LingQ's per-word tags (inflection form, subject pronoun, grammatical
+        # category) are usually noise at Mnemosyne-scale - a tag per inflected
+        # lemma floods the tag panel.  Opt in with --lingq-tags if you want
+        # them (e.g. for filtering by grammatical role).
+        use_extra = extra_tags if lingq_tags else []
         tag_ids = list(base_tag_ids)
-        for t in extra_tags:
+        for t in use_extra:
             tag_ids.append(get_or_create_tag(conn, t))
         tags_str = ", ".join(
-            sorted({lang_tag, "lingq-import", *extra_tags})
+            sorted({lang_tag, "lingq-import", *use_extra})
         )
         insert_card(conn, front, back, tag_ids, tags_str)
         added += 1
@@ -409,6 +414,8 @@ def main():
                     help="Swap front/back (production practice: hint->term)")
     ap.add_argument("--html", action="store_true",
                     help="Emit <b>/<i>/<br> formatting (default is plain text, which renders consistently across Mnemosyne themes and other SRS frontends)")
+    ap.add_argument("--lingq-tags", action="store_true",
+                    help="Import LingQ's per-word tags (inflection form, pronoun, grammatical category) as Mnemosyne tags. Default: skip - Russian/lingq-import only.")
     ap.add_argument("--dry-run", action="store_true", help="Print front/back to stdout, do not touch Mnemosyne")
     ap.add_argument("--tsv", metavar="FILE", help="Write TSV (front\\tback) to FILE; do not touch Mnemosyne DB")
     ap.add_argument("--flush-queue", action="store_true", help="Import any LingQs queued while Mnemosyne was open")
@@ -443,7 +450,8 @@ def main():
         return
 
     import_to_mnemosyne(lingqs, args.lang,
-                        style=args.style, reverse=args.reverse, html=args.html)
+                        style=args.style, reverse=args.reverse, html=args.html,
+                        lingq_tags=args.lingq_tags)
 
 
 if __name__ == "__main__":
