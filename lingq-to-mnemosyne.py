@@ -245,6 +245,9 @@ def insert_card(conn, front, back, tag_ids, tags_str):
     )
 
     card_id = random_id()
+    # New-card sentinels: grade=-1 (unseen), next_rep=-1 (unscheduled), last_rep=-1 (never).
+    # Using grade=0 makes Mnemosyne's scheduler think the card was rated "blackout" and
+    # throw "internal error: interval not zero" on first grading.
     conn.execute(
         """
         INSERT INTO cards (
@@ -258,7 +261,7 @@ def insert_card(conn, front, back, tag_ids, tags_str):
         ) VALUES (
             ?, ?, ?, ?,
             ?, ?, ?,
-            0, 0, -1,
+            -1, -1, -1,
             2.5, 0, 0, 0,
             0, 0,
             ?, ?,
