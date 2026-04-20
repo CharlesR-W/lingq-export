@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import random
+import re
 import shutil
 import sqlite3
 import string
@@ -128,29 +129,59 @@ def fetch_lingqs(token, lang, n, status_filter=None):
 # Front/back rendering
 # ---------------------------------------------------------------------------
 
-def render_card(lq):
-    """Project a LingQ API record down to (front, back, extra_tags)."""
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html(s):
+    """Render HTML formatting as plain text. Newlines become ' | '."""
+    s = s.replace("<br>", " | ").replace("<br/>", " | ").replace("<br />", " | ")
+    return _HTML_TAG_RE.sub("", s).strip()
+
+
+def render_card(lq, style="context", reverse=False, no_html=False):
+    """Project a LingQ API record down to (front, back, tags).
+
+    style:
+        "word"    - front = term, back = hint(s)
+        "context" - front = term + example sentence, back = hint(s)  [default]
+        "cloze"   - front = sentence with term blanked, back = term + hint(s)
+    reverse: swap front and back (production-direction cards).
+    no_html: strip HTML tags - useful for plain TSV consumers.
+    """
     term = (lq.get("term") or "").strip()
     fragment = (lq.get("fragment") or "").strip()
     notes = (lq.get("notes") or "").strip()
     hints = lq.get("hints") or []
     tags = lq.get("tags") or []
 
-    # Front: bold term, plus context fragment in italic if available.
-    front = f"<b>{term}</b>"
-    if fragment and fragment.lower() != term.lower():
-        front += f"<br><i>{fragment}</i>"
-
-    # Back: hints joined; notes appended below.
     hint_texts = [h.get("text", "").strip() for h in hints if h.get("text")]
-    back_parts = []
-    if hint_texts:
-        back_parts.append("; ".join(hint_texts))
+    hints_str = "; ".join(hint_texts) if hint_texts else "<i>(no hint)</i>"
+
+    if style == "word":
+        front = f"<b>{term}</b>"
+        back = hints_str
+    elif style == "cloze":
+        if fragment and term and term in fragment:
+            front = fragment.replace(term, "<b>___</b>", 1)
+        else:
+            # No usable fragment - degrade gracefully to term-only front.
+            front = f"<b>{term}</b>"
+        back = f"<b>{term}</b><br>{hints_str}"
+    else:  # "context" (default)
+        front = f"<b>{term}</b>"
+        if fragment and fragment.lower() != term.lower():
+            front += f"<br><i>{fragment}</i>"
+        back = hints_str
+
     if notes:
-        back_parts.append(f"<br><i>{notes}</i>")
-    if not back_parts:
-        back_parts.append("<i>(no hint)</i>")
-    back = "".join(back_parts)
+        back += f"<br><i>{notes}</i>"
+
+    if reverse:
+        front, back = back, front
+
+    if no_html:
+        front = strip_html(front)
+        back = strip_html(back)
 
     return front, back, tags
 
@@ -238,7 +269,7 @@ def insert_card(conn, front, back, tag_ids, tags_str):
         )
 
 
-def import_to_mnemosyne(lingqs, lang_code):
+def import_to_mnemosyne(lingqs, lang_code, style="context", reverse=False):
     if not os.path.exists(MNEMOSYNE_DB):
         sys.exit(f"Mnemosyne database not found: {MNEMOSYNE_DB}")
 
@@ -265,7 +296,7 @@ def import_to_mnemosyne(lingqs, lang_code):
 
     added = skipped = 0
     for lq in lingqs:
-        front, back, extra_tags = render_card(lq)
+        front, back, extra_tags = render_card(lq, style=style, reverse=reverse)
         if not front:
             continue
         if card_exists(conn, front):
@@ -283,31 +314,34 @@ def import_to_mnemosyne(lingqs, lang_code):
     conn.commit()
     conn.close()
     print(f"Mnemosyne import: {added} cards added, {skipped} duplicates skipped")
-    log(f"imported lang={lang_code} added={added} skipped={skipped}")
+    log(f"imported lang={lang_code} added={added} skipped={skipped} style={style} reverse={reverse}")
 
 
-def write_tsv(lingqs, path, lang_code):
+def write_tsv(lingqs, path, lang_code, style="context", reverse=False, no_html=False):
     """Write Mnemosyne-friendly TSV: front<TAB>back, one card per line.
 
-    HTML formatting (<b>, <br>, <i>) is preserved — Mnemosyne renders it.
-    LingQ tags are appended to the back in italic since stock TSV import
-    only handles 2 columns reliably.
+    HTML formatting (<b>, <br>, <i>) is preserved unless no_html=True.
+    LingQ tags are appended to the back since stock TSV import handles 2
+    columns reliably.
     """
     written = 0
     with open(path, "w", encoding="utf-8") as f:
         for lq in lingqs:
-            front, back, tags = render_card(lq)
+            front, back, tags = render_card(
+                lq, style=style, reverse=reverse, no_html=no_html
+            )
             if not front:
                 continue
             if tags:
-                back += f"<br><i>[{', '.join(tags)}]</i>"
+                tag_str = ", ".join(tags)
+                back += f" | [{tag_str}]" if no_html else f"<br><i>[{tag_str}]</i>"
             # Strip anything that would corrupt the TSV row
             front = front.replace("\t", " ").replace("\n", " ").replace("\r", "")
             back = back.replace("\t", " ").replace("\n", " ").replace("\r", "")
             f.write(f"{front}\t{back}\n")
             written += 1
     print(f"Wrote {written} cards -> {path}")
-    log(f"tsv lang={lang_code} count={written} path={path}")
+    log(f"tsv lang={lang_code} count={written} path={path} style={style} reverse={reverse} no_html={no_html}")
 
 
 def flush_queue():
@@ -352,8 +386,14 @@ def main():
     ap.add_argument("--lang", help="LingQ language code (el, la, zh, ...)")
     ap.add_argument("--n", type=int, default=50, help="Number of newest LingQs to fetch (default 50)")
     ap.add_argument("--status", type=int, nargs="+", help="Only fetch LingQs with these status codes (0=new ... 4=known)")
+    ap.add_argument("--style", choices=["word", "context", "cloze"], default="context",
+                    help="Card layout: word (term->hint), context (term+sentence->hint, default), cloze (sentence-with-blank->term+hint)")
+    ap.add_argument("--reverse", action="store_true",
+                    help="Swap front/back (production practice: hint->term)")
+    ap.add_argument("--no-html", action="store_true",
+                    help="Strip HTML formatting (only meaningful with --tsv or --dry-run; Mnemosyne renders HTML happily)")
     ap.add_argument("--dry-run", action="store_true", help="Print front/back to stdout, do not touch Mnemosyne")
-    ap.add_argument("--tsv", metavar="FILE", help="Write Mnemosyne-friendly TSV (front\\tback) to FILE; do not touch Mnemosyne DB")
+    ap.add_argument("--tsv", metavar="FILE", help="Write TSV (front\\tback) to FILE; do not touch Mnemosyne DB")
     ap.add_argument("--flush-queue", action="store_true", help="Import any LingQs queued while Mnemosyne was open")
     args = ap.parse_args()
 
@@ -370,7 +410,9 @@ def main():
 
     if args.dry_run:
         for lq in lingqs:
-            front, back, tags = render_card(lq)
+            front, back, tags = render_card(
+                lq, style=args.style, reverse=args.reverse, no_html=args.no_html
+            )
             print("---")
             print(f"FRONT: {front}")
             print(f"BACK : {back}")
@@ -379,10 +421,11 @@ def main():
         return
 
     if args.tsv:
-        write_tsv(lingqs, args.tsv, args.lang)
+        write_tsv(lingqs, args.tsv, args.lang,
+                  style=args.style, reverse=args.reverse, no_html=args.no_html)
         return
 
-    import_to_mnemosyne(lingqs, args.lang)
+    import_to_mnemosyne(lingqs, args.lang, style=args.style, reverse=args.reverse)
 
 
 if __name__ == "__main__":

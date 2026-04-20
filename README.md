@@ -89,6 +89,49 @@ already mastered:
 python3 lingq-to-mnemosyne.py --lang ru --n 200 --status 0 1 2 3
 ```
 
+### Card style
+
+Three layouts (`--style`):
+
+| Style       | Front                          | Back                       |
+|-------------|--------------------------------|----------------------------|
+| `word`      | term                           | hint                       |
+| `context`   | term + example sentence (default) | hint                    |
+| `cloze`     | sentence with term blanked     | term + hint                |
+
+```bash
+python3 lingq-to-mnemosyne.py --lang ru --n 50 --style cloze
+```
+
+`cloze` is the sentence-mining style: front shows e.g. `Я ___ поехать в
+отпуск`, back reveals `хочу / want`.  Falls back to `word` style if the
+LingQ has no usable fragment.
+
+### Reverse direction (production cards)
+
+Use `--reverse` to flip front and back, so you're recalling the target-language
+word *from* the English hint.  Pairs well with `--style word` for raw
+production drills:
+
+```bash
+python3 lingq-to-mnemosyne.py --lang ru --n 50 --style word --reverse
+```
+
+If you want both directions, run twice (once with `--reverse`, once without).
+Cards dedupe by exact front text, so they won't collide.
+
+### Plain text output
+
+`--no-html` strips `<b>`, `<br>`, `<i>` tags from front/back.  Useful with
+`--tsv` if you're piping to a tool that doesn't render HTML, or for human
+review:
+
+```bash
+python3 lingq-to-mnemosyne.py --lang ru --n 50 --tsv out.tsv --no-html
+```
+
+(Mnemosyne renders HTML happily, so don't use this for direct DB imports.)
+
 ### Mnemosyne is open?
 
 The script will detect a locked DB and queue the LingQs to
