@@ -108,14 +108,13 @@ python3 lingq-to-mnemosyne.py --lang ru --n 50 --style cloze
 отпуск`, back reveals `хочу / want`.  Falls back to `word` style if the
 LingQ has no usable fragment.
 
-### Reverse direction (production cards)
+### Reverse direction (recognition cards)
 
-Use `--reverse` to flip front and back, so you're recalling the target-language
-word *from* the English hint.  Pairs well with `--style word` for raw
-production drills:
+The default direction is production (hint -> term).  Pass `--reverse` to flip
+to recognition (term -> hint) - useful for reading-focused practice:
 
 ```bash
-python3 lingq-to-mnemosyne.py --lang ru --n 50 --style word --reverse
+python3 lingq-to-mnemosyne.py --lang ru --n 50 --reverse
 ```
 
 If you want both directions, run twice (once with `--reverse`, once without).
@@ -145,7 +144,20 @@ python3 lingq-to-mnemosyne.py --flush-queue
 
 ## Card format
 
+By default the hint (L1) is on the front and the term + example sentence
+(L2) is on the back.  This is the **production direction** - you see the
+English meaning and have to recall the target-language word, which is what
+most SRS users want for active vocabulary retention.
+
 **Front** (default `--style context`, plain text):
+
+```
+want
+```
+
+Or, with multiple hints joined: `want; wish; would like`.
+
+**Back:**
 
 ```
 хочу
@@ -153,16 +165,12 @@ python3 lingq-to-mnemosyne.py --flush-queue
 ```
 
 The term on one line, the example sentence (LingQ's `fragment`) below.  If
-the fragment is identical to the term, only the term is shown.
+the fragment is identical to the term, only the term is shown.  User notes
+(if any) are appended below.
 
-**Back:**
-
-```
-want
-```
-
-Or, with multiple hints joined: `want; wish; would like`.  User notes (if any)
-are appended below.
+Use `--reverse` for the **recognition direction** (term + sentence on
+front, hint on back) - useful if you're using the cards to reinforce
+reading rather than recall.
 
 ## The Cloudflare gotcha
 

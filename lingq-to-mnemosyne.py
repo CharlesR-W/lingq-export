@@ -189,7 +189,10 @@ def render_card(lq, style="context", reverse=False, html=False):
     if notes:
         back += f"{br}{ital(notes)}"
 
-    if reverse:
+    # Default is production direction: hint on front, term on back.  --reverse
+    # flips to recognition direction (term on front, hint on back) - useful
+    # for reading practice.
+    if not reverse:
         front, back = back, front
 
     return front, back, tags
@@ -398,7 +401,7 @@ def main():
     ap.add_argument("--style", choices=["word", "context", "cloze"], default="context",
                     help="Card layout: word (term->hint), context (term+sentence->hint, default), cloze (sentence-with-blank->term+hint)")
     ap.add_argument("--reverse", action="store_true",
-                    help="Swap front/back (production practice: hint->term)")
+                    help="Recognition direction: term on front, hint on back (reading practice). Default is production: hint on front, term on back (recall/speaking practice).")
     ap.add_argument("--html", action="store_true",
                     help="Emit <b>/<i>/<br> formatting (default is plain text, which renders consistently across Mnemosyne themes and other SRS frontends)")
     ap.add_argument("--dry-run", action="store_true", help="Print front/back to stdout, do not touch Mnemosyne")
