@@ -189,10 +189,7 @@ def render_card(lq, style="context", reverse=False, html=False):
     if notes:
         back += f"{br}{ital(notes)}"
 
-    # Default is production direction: hint on front, term on back.  --reverse
-    # flips to recognition direction (term on front, hint on back) - useful
-    # for reading practice.
-    if not reverse:
+    if reverse:
         front, back = back, front
 
     return front, back, tags
@@ -307,7 +304,10 @@ def import_to_mnemosyne(lingqs, lang_code, style="context", reverse=False, html=
     ]
 
     added = skipped = 0
-    for lq in lingqs:
+    # Insert oldest-first so Mnemosyne's "add first cards first" ordering shows
+    # the oldest LingQ at the top of the new-card queue.  LingQ's API returns
+    # newest-first, so we reverse here.
+    for lq in reversed(lingqs):
         front, back, extra_tags = render_card(lq, style=style, reverse=reverse, html=html)
         if not front:
             continue
@@ -338,7 +338,9 @@ def write_tsv(lingqs, path, lang_code, style="context", reverse=False, html=Fals
     """
     written = 0
     with open(path, "w", encoding="utf-8") as f:
-        for lq in lingqs:
+        # Oldest-first (reverse of LingQ's API order) so spreadsheet/Anki users
+        # get chronological vocabulary.
+        for lq in reversed(lingqs):
             front, back, tags = render_card(
                 lq, style=style, reverse=reverse, html=html
             )
@@ -401,7 +403,7 @@ def main():
     ap.add_argument("--style", choices=["word", "context", "cloze"], default="context",
                     help="Card layout: word (term->hint), context (term+sentence->hint, default), cloze (sentence-with-blank->term+hint)")
     ap.add_argument("--reverse", action="store_true",
-                    help="Recognition direction: term on front, hint on back (reading practice). Default is production: hint on front, term on back (recall/speaking practice).")
+                    help="Swap front/back (production practice: hint->term)")
     ap.add_argument("--html", action="store_true",
                     help="Emit <b>/<i>/<br> formatting (default is plain text, which renders consistently across Mnemosyne themes and other SRS frontends)")
     ap.add_argument("--dry-run", action="store_true", help="Print front/back to stdout, do not touch Mnemosyne")

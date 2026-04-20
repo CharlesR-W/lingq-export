@@ -108,17 +108,25 @@ python3 lingq-to-mnemosyne.py --lang ru --n 50 --style cloze
 отпуск`, back reveals `хочу / want`.  Falls back to `word` style if the
 LingQ has no usable fragment.
 
-### Reverse direction (recognition cards)
+### Reverse direction (production cards)
 
-The default direction is production (hint -> term).  Pass `--reverse` to flip
-to recognition (term -> hint) - useful for reading-focused practice:
+Use `--reverse` to flip front and back, so you're recalling the target-language
+word *from* the English hint.  Pairs well with `--style word` for raw
+production drills:
 
 ```bash
-python3 lingq-to-mnemosyne.py --lang ru --n 50 --reverse
+python3 lingq-to-mnemosyne.py --lang ru --n 50 --style word --reverse
 ```
 
 If you want both directions, run twice (once with `--reverse`, once without).
 Cards dedupe by exact front text, so they won't collide.
+
+### Insertion order
+
+LingQs are inserted into Mnemosyne (and written to TSV) in **oldest-first**
+order, so when you review the new-card queue you start with the words you
+added first rather than the words you added yesterday.  The LingQ API returns
+newest-first; the script reverses that for you.
 
 ### HTML formatting
 
@@ -144,20 +152,7 @@ python3 lingq-to-mnemosyne.py --flush-queue
 
 ## Card format
 
-By default the hint (L1) is on the front and the term + example sentence
-(L2) is on the back.  This is the **production direction** - you see the
-English meaning and have to recall the target-language word, which is what
-most SRS users want for active vocabulary retention.
-
 **Front** (default `--style context`, plain text):
-
-```
-want
-```
-
-Or, with multiple hints joined: `want; wish; would like`.
-
-**Back:**
 
 ```
 хочу
@@ -165,12 +160,19 @@ Or, with multiple hints joined: `want; wish; would like`.
 ```
 
 The term on one line, the example sentence (LingQ's `fragment`) below.  If
-the fragment is identical to the term, only the term is shown.  User notes
-(if any) are appended below.
+the fragment is identical to the term, only the term is shown.
 
-Use `--reverse` for the **recognition direction** (term + sentence on
-front, hint on back) - useful if you're using the cards to reinforce
-reading rather than recall.
+**Back:**
+
+```
+want
+```
+
+Or, with multiple hints joined: `want; wish; would like`.  User notes (if any)
+are appended below.
+
+Use `--reverse` to put the hint on the front instead (production practice:
+see English, recall the target-language term).
 
 ## The Cloudflare gotcha
 
