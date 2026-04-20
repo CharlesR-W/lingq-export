@@ -1,4 +1,4 @@
-# lingq-to-mnemosyne
+# lingq-export
 
 Pull your LingQs (vocabulary) from the [LingQ](https://www.lingq.com) API and
 import them into [Mnemosyne](https://mnemosyne-proj.org/) as flashcards.  Or
@@ -24,8 +24,8 @@ No dependencies beyond Python 3.10+.  The script uses only the standard
 library.
 
 ```bash
-git clone https://github.com/CharlesR-W/lingq-to-mnemosyne.git
-cd lingq-to-mnemosyne
+git clone https://github.com/CharlesR-W/lingq-export.git
+cd lingq-export
 chmod +x lingq-to-mnemosyne.py
 ```
 
@@ -65,8 +65,9 @@ Prints the front/back/tags it *would* produce, without touching anything.
 python3 lingq-to-mnemosyne.py --lang ru --n 500 --tsv ~/Downloads/lingq-ru.tsv
 ```
 
-Writes a 2-column TSV (`front<TAB>back`) with HTML formatting preserved.
-LingQ's own tags (e.g. grammatical role) are appended to the back in italic.
+Writes a 2-column TSV (`front<TAB>back`) in plain text.  LingQ's own tags
+(e.g. grammatical role) are appended to the back in `[brackets]`.  Pass
+`--html` for `<b>`/`<i>`/`<br>` formatting if your target renders HTML.
 
 ### Import into Mnemosyne
 
@@ -120,17 +121,18 @@ python3 lingq-to-mnemosyne.py --lang ru --n 50 --style word --reverse
 If you want both directions, run twice (once with `--reverse`, once without).
 Cards dedupe by exact front text, so they won't collide.
 
-### Plain text output
+### HTML formatting
 
-`--no-html` strips `<b>`, `<br>`, `<i>` tags from front/back.  Useful with
-`--tsv` if you're piping to a tool that doesn't render HTML, or for human
-review:
+By default the script emits plain text — which renders consistently across
+Mnemosyne themes, Anki, spreadsheets, and human review.  If you want bolded
+terms and italic example sentences, opt in with `--html`:
 
 ```bash
-python3 lingq-to-mnemosyne.py --lang ru --n 50 --tsv out.tsv --no-html
+python3 lingq-to-mnemosyne.py --lang ru --n 50 --html
 ```
 
-(Mnemosyne renders HTML happily, so don't use this for direct DB imports.)
+This enables `<b>term</b>`, `<i>example sentence</i>`, and `<br>` linebreaks
+throughout.
 
 ### Mnemosyne is open?
 
@@ -143,23 +145,24 @@ python3 lingq-to-mnemosyne.py --flush-queue
 
 ## Card format
 
-**Front:**
+**Front** (default `--style context`, plain text):
 
-```html
-<b>хочу</b><br><i>Я хочу поехать в отпуск</i>
+```
+хочу
+Я хочу поехать в отпуск
 ```
 
-The bold word and the example sentence (LingQ's `fragment`) it came from.  If
+The term on one line, the example sentence (LingQ's `fragment`) below.  If
 the fragment is identical to the term, only the term is shown.
 
 **Back:**
 
-```html
+```
 want
 ```
 
 Or, with multiple hints joined: `want; wish; would like`.  User notes (if any)
-are appended in italic.
+are appended below.
 
 ## The Cloudflare gotcha
 
