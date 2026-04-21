@@ -35,6 +35,7 @@ import urllib.request
 
 MNEMOSYNE_DB = os.path.expanduser("~/Mnemosyne/default.db")
 QUEUE_DIR = os.path.expanduser("~/.local/share/lingq/queue/")
+SEEN_DIR = os.path.expanduser("~/.local/share/lingq/seen/")
 LOG_PATH = os.path.expanduser("~/.local/share/lingq/import.log")
 TOKEN_FILE = os.path.expanduser("~/.config/lingq/token")
 CARD_TYPE_ID = "1"
@@ -60,6 +61,30 @@ LANG_NAMES = {
 # ---------------------------------------------------------------------------
 # Token loading
 # ---------------------------------------------------------------------------
+
+def _seen_path(lang):
+    return os.path.join(SEEN_DIR, f"{lang}.json")
+
+
+def load_seen(lang):
+    """Set of LingQ pks we've previously fetched for this language.
+
+    Used to skip cards the user has deleted from Mnemosyne: front-text dedup
+    can't see them once they're gone, but the pk lives on in this sidecar
+    forever.  Delete a card -> pk stays seen -> never re-imports.
+    """
+    path = _seen_path(lang)
+    if not os.path.exists(path):
+        return set()
+    with open(path) as f:
+        return set(json.load(f))
+
+
+def save_seen(lang, pks):
+    os.makedirs(SEEN_DIR, exist_ok=True)
+    with open(_seen_path(lang), "w") as f:
+        json.dump(sorted(int(p) for p in pks if p is not None), f)
+
 
 def load_token():
     tok = os.environ.get("LINGQ_TOKEN", "").strip()
@@ -416,6 +441,10 @@ def main():
                     help="Emit <b>/<i>/<br> formatting (default is plain text, which renders consistently across Mnemosyne themes and other SRS frontends)")
     ap.add_argument("--lingq-tags", action="store_true",
                     help="Import LingQ's per-word tags (inflection form, pronoun, grammatical category) as Mnemosyne tags. Default: skip - Russian/lingq-import only.")
+    ap.add_argument("--reimport", action="store_true",
+                    help="Ignore the seen-pks sidecar and re-consider every fetched LingQ (use if you want to re-add a card you deleted).")
+    ap.add_argument("--mark-seen", action="store_true",
+                    help="Fetch and record pks as 'seen' but do not import. Bootstrap for the seen-pks workflow: after this, deletions in Mnemosyne stick across re-imports.")
     ap.add_argument("--dry-run", action="store_true", help="Print front/back to stdout, do not touch Mnemosyne")
     ap.add_argument("--tsv", metavar="FILE", help="Write TSV (front\\tback) to FILE; do not touch Mnemosyne DB")
     ap.add_argument("--flush-queue", action="store_true", help="Import any LingQs queued while Mnemosyne was open")
@@ -431,6 +460,21 @@ def main():
     token = load_token()
     lingqs = fetch_lingqs(token, args.lang, args.n, args.status)
     print(f"Fetched {len(lingqs)} LingQ(s) for {args.lang}")
+
+    # Seen-pks filter: skip LingQs we've processed before, regardless of
+    # whether they currently exist in Mnemosyne. Lets deletions stick.
+    seen = set() if args.reimport else load_seen(args.lang)
+    if seen and not args.reimport:
+        before = len(lingqs)
+        lingqs = [lq for lq in lingqs if lq.get("pk") not in seen]
+        print(f"Filtered {before - len(lingqs)} previously-seen pks; {len(lingqs)} remain")
+
+    # --mark-seen: just record every fetched pk and exit.
+    if args.mark_seen:
+        all_pks = {lq.get("pk") for lq in lingqs} | seen
+        save_seen(args.lang, all_pks)
+        print(f"Recorded {len(all_pks)} pks as seen for {args.lang} (no import performed)")
+        return
 
     if args.dry_run:
         for lq in lingqs:
@@ -452,6 +496,11 @@ def main():
     import_to_mnemosyne(lingqs, args.lang,
                         style=args.style, reverse=args.reverse, html=args.html,
                         lingq_tags=args.lingq_tags)
+
+    # Record every processed pk (inserted AND deduped-by-front-text). Ensures
+    # that if the user deletes a card later, we won't re-import it.
+    processed_pks = {lq.get("pk") for lq in lingqs if lq.get("pk") is not None}
+    save_seen(args.lang, seen | processed_pks)
 
 
 if __name__ == "__main__":
