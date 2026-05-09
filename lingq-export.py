@@ -182,7 +182,7 @@ def render_card(lq, style="context", reverse=False, html=False):
 
     style:
         "word"    - front = term, back = hint(s)
-        "context" - front = term + example sentence, back = hint(s)  [default]
+        "context" - front = term, back = hint(s) + example sentence  [default]
         "cloze"   - front = sentence with term blanked, back = term + hint(s)
                     (rendered as a Basic note, NOT Anki's cloze note type)
     reverse: swap front and back (production-direction cards).
@@ -220,9 +220,9 @@ def render_card(lq, style="context", reverse=False, html=False):
         back = f"{bold(term)}{br}{hints_str}"
     else:  # "context" (default)
         front = bold(term)
-        if fragment and fragment.lower() != term.lower():
-            front += f"{br}{ital(fragment)}"
         back = hints_str
+        if fragment and fragment.lower() != term.lower():
+            back += f"{br}{ital(fragment)}"
 
     if notes:
         back += f"{br}{ital(notes)}"
@@ -500,7 +500,11 @@ def flush_queue(db_path=MNEMOSYNE_DB):
 # ---------------------------------------------------------------------------
 
 def _tsv_safe(s):
-    return s.replace("\t", " ").replace("\n", " ").replace("\r", "")
+    # Newlines become <br> so they survive the TSV row and render as line
+    # breaks in Anki's Basic note type (which interprets HTML).  A literal
+    # space separator silently glues term and sentence together; a literal
+    # \n would break the row.
+    return s.replace("\t", " ").replace("\n", "<br>").replace("\r", "")
 
 
 def write_tsv(lingqs, path, lang_code, deck=DEFAULT_DECK,

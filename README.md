@@ -136,7 +136,7 @@ Three layouts (`--style`):
 | Style       | Front                          | Back                       |
 |-------------|--------------------------------|----------------------------|
 | `word`      | term                           | hint                       |
-| `context`   | term + example sentence (default) | hint                    |
+| `context`   | term (default)                 | hint + example sentence    |
 | `cloze`     | sentence with term blanked     | term + hint                |
 
 ```bash
@@ -199,20 +199,21 @@ bootstrap with `--mark-seen` to seed the sidecar without importing anything.
 
 ```
 хочу
-Я хочу поехать в отпуск
 ```
 
-The term on one line, the example sentence (LingQ's `fragment`) below.  If
-the fragment is identical to the term, only the term is shown.
+Just the term — sentence-on-front gives away too much during recall, so the
+example sentence lives on the back instead.
 
 **Back:**
 
 ```
 want
+Я хочу поехать в отпуск
 ```
 
-Or, with multiple hints joined: `want; wish; would like`.  User notes (if any)
-are appended below.
+The hint on one line, the example sentence (LingQ's `fragment`) below.  Multiple
+hints are joined: `want; wish; would like`.  If the fragment is identical to
+the term, only the hint is shown.  User notes (if any) are appended below.
 
 Use `--reverse` to put the hint on the front instead (production practice:
 see English, recall the target-language term).
